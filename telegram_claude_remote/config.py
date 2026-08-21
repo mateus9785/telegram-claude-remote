@@ -19,9 +19,9 @@ CLAUDE_STATUS_TIMEOUT = 20
 CLAUDE_REOPEN_TIMEOUT = 60
 
 
-def load_env():
-    valores = {}
-    with open(ENV_PATH, "r", encoding="utf-8") as f:
+def load_env() -> dict[str, str]:
+    valores: dict[str, str] = {}
+    with open(ENV_PATH, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
@@ -31,9 +31,9 @@ def load_env():
     return valores
 
 
-def set_owner_chat_id(chat_id):
+def set_owner_chat_id(chat_id: str) -> None:
     """Reescreve a linha OWNER_CHAT_ID=... no .env, preservando o resto do arquivo."""
-    with open(ENV_PATH, "r", encoding="utf-8") as f:
+    with open(ENV_PATH, encoding="utf-8") as f:
         linhas = f.readlines()
 
     nova_linha = f"OWNER_CHAT_ID={chat_id}\n"
@@ -50,16 +50,16 @@ def set_owner_chat_id(chat_id):
         f.writelines(linhas)
 
 
-def load_offset():
+def load_offset() -> int | None:
     if os.path.exists(OFFSET_PATH):
-        with open(OFFSET_PATH, "r", encoding="utf-8") as f:
+        with open(OFFSET_PATH, encoding="utf-8") as f:
             content = f.read().strip()
             if content:
                 return int(content)
     return None
 
 
-def save_offset(offset):
+def save_offset(offset: int) -> None:
     with open(OFFSET_PATH, "w", encoding="utf-8") as f:
         f.write(str(offset))
 
@@ -69,12 +69,12 @@ class BotState:
     criada em main() e passada explicitamente pelos handlers em vez de lida/mutada
     via `global`."""
 
-    def __init__(self, owner_chat_id=None):
+    def __init__(self, owner_chat_id: str | None = None) -> None:
         self.owner_chat_id = owner_chat_id
 
-    def is_owner(self, chat_id):
+    def is_owner(self, chat_id: int | str) -> bool:
         return self.owner_chat_id is not None and str(chat_id) == str(self.owner_chat_id)
 
-    def lock_to(self, chat_id):
+    def lock_to(self, chat_id: int | str) -> None:
         self.owner_chat_id = str(chat_id)
         set_owner_chat_id(self.owner_chat_id)

@@ -9,6 +9,7 @@ import signal
 import subprocess
 import time
 from datetime import datetime
+from typing import Any
 
 from . import config
 
@@ -18,13 +19,15 @@ logger = logging.getLogger(__name__)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
 
 
-def _id_de_sessao_valido(session_id):
+def _id_de_sessao_valido(session_id: str | None) -> bool:
     # ids de sessão são curtos e alfanuméricos (hex + '-'); recusa qualquer coisa
     # fora disso pra não montar caminho de job com '/' ou '..'.
-    return bool(session_id) and all(c.isalnum() or c == "-" for c in session_id)
+    if not session_id:
+        return False
+    return all(c.isalnum() or c == "-" for c in session_id)
 
 
-def launch_session(prompt):
+def launch_session(prompt: str) -> tuple[bool, str | None, str | None]:
     """Lança `claude --remote-control ... --bg`. Retorna (ok, session_name, erro):
     ok=True -> session_name preenchido, erro None.
     ok=False -> session_name None, erro com a mensagem pronta pro usuário."""
@@ -36,7 +39,11 @@ def launch_session(prompt):
     logger.info("lançando %s (cwd=%s)", cmd, config.HOME_DIR)
     try:
         result = subprocess.run(
-            cmd, cwd=config.HOME_DIR, capture_output=True, text=True, timeout=config.CLAUDE_LAUNCH_TIMEOUT,
+            cmd,
+            cwd=config.HOME_DIR,
+            capture_output=True,
+            text=True,
+            timeout=config.CLAUDE_LAUNCH_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
         return False, None, "Tempo esgotado tentando abrir a sessão. Tente /status para conferir."
@@ -49,14 +56,17 @@ def launch_session(prompt):
     return True, session_name, None
 
 
-def list_sessions():
+def list_sessions() -> tuple[bool, list[dict[str, Any]] | None, str | None]:
     """Roda `claude agents --json`. Retorna (ok, sessoes, erro):
     ok=True -> sessoes é a lista já parseada do JSON, erro None.
     ok=False -> sessoes None, erro com a mensagem pronta pro usuário."""
     try:
         result = subprocess.run(
             ["claude", "agents", "--json"],
-            cwd=config.HOME_DIR, capture_output=True, text=True, timeout=config.CLAUDE_STATUS_TIMEOUT,
+            cwd=config.HOME_DIR,
+            capture_output=True,
+            text=True,
+            timeout=config.CLAUDE_STATUS_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
         return False, None, "Tempo esgotado consultando as sessões."
@@ -72,12 +82,15 @@ def list_sessions():
     return True, sessoes, None
 
 
-def buscar_sessao_por_id(session_id):
+def buscar_sessao_por_id(session_id: str) -> dict[str, Any] | None:
     """Consulta `claude agents --json` e devolve o dict da sessão com esse id, ou None."""
     try:
         result = subprocess.run(
             ["claude", "agents", "--json"],
-            cwd=config.HOME_DIR, capture_output=True, text=True, timeout=config.CLAUDE_STATUS_TIMEOUT,
+            cwd=config.HOME_DIR,
+            capture_output=True,
+            text=True,
+            timeout=config.CLAUDE_STATUS_TIMEOUT,
         )
         sessoes = json.loads(result.stdout)
     except (subprocess.SubprocessError, json.JSONDecodeError):
@@ -88,7 +101,7 @@ def buscar_sessao_por_id(session_id):
     return None
 
 
-def encerrar_sessao(session_id):
+def encerrar_sessao(session_id: str) -> tuple[bool, str | None]:
     """Encerra (SIGTERM) o processo da sessão, ou limpa o job dir se for fantasma
     (sem pid). Retorna (ok, erro): ok=True -> encerrada com sucesso, erro None.
     ok=False -> erro com a mensagem pronta pro usuário (alerta de callback)."""
@@ -119,27 +132,27 @@ def encerrar_sessao(session_id):
     return True, None
 
 
-def carregar_state(session_id):
+def carregar_state(session_id: str) -> dict[str, Any] | None:
     """Lê o state.json do job dessa sessão (guarda resumeSessionId, respawnFlags, bridge)."""
     caminho = os.path.join(config.JOBS_DIR, session_id, "state.json")
     try:
-        with open(caminho, "r", encoding="utf-8") as f:
+        with open(caminho, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
 
 
-def montar_url_remote(bridge_session_id):
+def montar_url_remote(bridge_session_id: str | None) -> str | None:
     """Monta a URL de continuar no app a partir do bridgeSessionId (cse_... -> session_...)."""
     if not bridge_session_id:
         return None
     sid = bridge_session_id
     if sid.startswith("cse_"):
-        sid = sid[len("cse_"):]
+        sid = sid[len("cse_") :]
     return f"https://claude.ai/code/session_{sid}"
 
 
-def extrair_novo_id(saida):
+def extrair_novo_id(saida: str) -> str | None:
     """Acha o id novo de sessão na saída do `claude --resume ... --bg`
     (formato 'backgrounded · <id> (idle — ...)'), já sem códigos ANSI.
     None se não achar."""
@@ -148,7 +161,7 @@ def extrair_novo_id(saida):
     return m.group(1) if m else None
 
 
-def reabrir_sessao(session_id):
+def reabrir_sessao(session_id: str) -> tuple[bool, str | None, str | None, str | None]:
     """Respawna uma sessão bg bloqueada (fantasma, sem processo) com o Remote Control
     reativado, resumindo a conversa de onde parou. O `claude --resume ... --bg` cria um
     id de job NOVO e deixa o fantasma antigo pra trás, então limpamos o antigo aqui (a
@@ -165,7 +178,11 @@ def reabrir_sessao(session_id):
     logger.info("reabrindo %s (cwd=%s)", cmd, config.HOME_DIR)
     try:
         result = subprocess.run(
-            cmd, cwd=config.HOME_DIR, capture_output=True, text=True, timeout=config.CLAUDE_REOPEN_TIMEOUT,
+            cmd,
+            cwd=config.HOME_DIR,
+            capture_output=True,
+            text=True,
+            timeout=config.CLAUDE_REOPEN_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
         return False, None, None, "tempo esgotado ao reabrir. Confira com /status."
