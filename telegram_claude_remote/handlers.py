@@ -1,10 +1,13 @@
 """Handlers de comando/callback do Telegram e o dispatch de updates."""
 
+import logging
 import os
 from datetime import datetime
 
 from . import claude_control, config
 from .telegram_client import enviar_mensagem, responder_callback
+
+logger = logging.getLogger(__name__)
 
 _COMANDOS_COM_ARGUMENTO = {"/claude", "/reabrir"}
 _COMANDOS = ("/start", "/claude", "/status", "/reabrir", "/pastas")
@@ -25,7 +28,7 @@ def parse_command(texto):
 def handle_start(base_url, chat_id, state):
     if state.owner_chat_id is None:
         state.lock_to(chat_id)
-        print(f"[acesso travado] OWNER_CHAT_ID={state.owner_chat_id}")
+        logger.info("acesso travado OWNER_CHAT_ID=%s", state.owner_chat_id)
         enviar_mensagem(
             base_url, chat_id,
             "Acesso travado neste chat — a partir de agora só respondo comandos "
@@ -216,7 +219,7 @@ def process_update(update, base_url, state):
 
     chat_id = message["chat"]["id"]
     texto = message["text"].strip()
-    print(f"[msg {chat_id}] {texto}")
+    logger.info("msg %s: %s", chat_id, texto)
 
     comando, arg = parse_command(texto)
 

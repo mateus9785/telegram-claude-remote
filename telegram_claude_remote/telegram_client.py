@@ -1,8 +1,12 @@
 """Cliente HTTP mínimo pra Telegram Bot API (mensagens, callbacks, long-polling)."""
 
+import logging
+
 import requests
 
 from . import config
+
+logger = logging.getLogger(__name__)
 
 
 def enviar_mensagem(base_url, chat_id, texto, reply_markup=None):
@@ -11,8 +15,8 @@ def enviar_mensagem(base_url, chat_id, texto, reply_markup=None):
         payload["reply_markup"] = reply_markup
     try:
         requests.post(f"{base_url}/sendMessage", json=payload, timeout=15)
-    except requests.RequestException as e:
-        print(f"[erro ao enviar para {chat_id}] {e}")
+    except requests.RequestException:
+        logger.error("erro ao enviar para %s", chat_id, exc_info=True)
 
 
 def responder_callback(base_url, callback_query_id, texto=None, show_alert=False):
@@ -23,8 +27,8 @@ def responder_callback(base_url, callback_query_id, texto=None, show_alert=False
         payload["show_alert"] = True
     try:
         requests.post(f"{base_url}/answerCallbackQuery", json=payload, timeout=15)
-    except requests.RequestException as e:
-        print(f"[erro ao responder callback] {e}")
+    except requests.RequestException:
+        logger.error("erro ao responder callback", exc_info=True)
 
 
 def get_updates(base_url, offset):
