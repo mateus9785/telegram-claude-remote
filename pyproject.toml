@@ -6,9 +6,10 @@ build-backend = "hatchling.build"
 name = "telegram-claude-remote"
 version = "0.1.0"
 description = "Bot Telegram que abre sessoes do Claude Code com Remote Control ativado, via long-polling."
+readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Mateus Oliveira", email = "mateusoliveira9785@gmail.com" }]
+authors = [{ name = "Mateus Oliveira de Almeida", email = "mateusoliveira9785@gmail.com" }]
 dependencies = ["requests>=2.31.0"]
 
 [project.optional-dependencies]
