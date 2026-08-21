@@ -13,4 +13,4 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy .
-      # pytest chega no PR test/pure-functions, quando tests/ existir
+      - run: pytest
