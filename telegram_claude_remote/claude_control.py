@@ -1,6 +1,7 @@
 """Controle do Claude Code via subprocess: lançar/listar/encerrar/reabrir sessões."""
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -10,6 +11,8 @@ import time
 from datetime import datetime
 
 from . import config
+
+logger = logging.getLogger(__name__)
 
 # tira os códigos de cor ANSI da saída do `claude --bg` pra achar o id novo
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
@@ -30,7 +33,7 @@ def launch_session(prompt):
     if prompt:
         cmd.append(prompt)
 
-    print(f"[lançando] {cmd} (cwd={config.HOME_DIR})")
+    logger.info("lançando %s (cwd=%s)", cmd, config.HOME_DIR)
     try:
         result = subprocess.run(
             cmd, cwd=config.HOME_DIR, capture_output=True, text=True, timeout=config.CLAUDE_LAUNCH_TIMEOUT,
@@ -40,7 +43,7 @@ def launch_session(prompt):
 
     if result.returncode != 0:
         erro = (result.stderr or result.stdout).strip()
-        print(f"[erro claude --remote-control] {erro}")
+        logger.error("erro claude --remote-control: %s", erro)
         return False, None, f"Falha ao abrir a sessão:\n{erro[:1500]}"
 
     return True, session_name, None
@@ -112,7 +115,7 @@ def encerrar_sessao(session_id):
         else:
             return False, "Sessão já não existe mais."
 
-    print(f"[sessão encerrada] id={session_id} pid={pid}")
+    logger.info("sessão encerrada id=%s pid=%s", session_id, pid)
     return True, None
 
 
@@ -159,7 +162,7 @@ def reabrir_sessao(session_id):
     flags = state.get("respawnFlags") or ["--remote-control", "--dangerously-skip-permissions"]
     cmd = ["claude", "--resume", resume_id, *flags, "--bg"]
 
-    print(f"[reabrindo] {cmd} (cwd={config.HOME_DIR})")
+    logger.info("reabrindo %s (cwd=%s)", cmd, config.HOME_DIR)
     try:
         result = subprocess.run(
             cmd, cwd=config.HOME_DIR, capture_output=True, text=True, timeout=config.CLAUDE_REOPEN_TIMEOUT,
@@ -178,8 +181,8 @@ def reabrir_sessao(session_id):
         if os.path.isdir(antigo):
             try:
                 shutil.rmtree(antigo)
-            except OSError as e:
-                print(f"[aviso: não limpei o fantasma {session_id}] {e}")
+            except OSError:
+                logger.warning("não limpei o fantasma %s", session_id, exc_info=True)
 
     # a bridge do Remote Control conecta de forma assíncrona; espera a URL aparecer
     url = None
