@@ -3,8 +3,10 @@
 import logging
 import os
 from datetime import datetime
+from typing import Any
 
 from . import claude_control, config
+from .config import BotState
 from .telegram_client import enviar_mensagem, responder_callback
 
 logger = logging.getLogger(__name__)
@@ -13,7 +15,7 @@ _COMANDOS_COM_ARGUMENTO = {"/claude", "/reabrir"}
 _COMANDOS = ("/start", "/claude", "/status", "/reabrir", "/pastas")
 
 
-def parse_command(texto):
+def parse_command(texto: str) -> tuple[str | None, str]:
     """Separa o texto de uma mensagem em (comando, argumento). `comando` inclui a
     barra ('/claude', '/status', ...) ou é None se o texto não for nenhum comando
     reconhecido; `argumento` é '' quando não há argumento (ou o comando não aceita)."""
@@ -21,16 +23,17 @@ def parse_command(texto):
         if texto == comando:
             return comando, ""
         if comando in _COMANDOS_COM_ARGUMENTO and texto.startswith(comando + " "):
-            return comando, texto[len(comando):].strip()
+            return comando, texto[len(comando) :].strip()
     return None, ""
 
 
-def handle_start(base_url, chat_id, state):
+def handle_start(base_url: str, chat_id: int | str, state: BotState) -> None:
     if state.owner_chat_id is None:
         state.lock_to(chat_id)
         logger.info("acesso travado OWNER_CHAT_ID=%s", state.owner_chat_id)
         enviar_mensagem(
-            base_url, chat_id,
+            base_url,
+            chat_id,
             "Acesso travado neste chat — a partir de agora só respondo comandos "
             "vindos daqui.\n\n"
             "/claude [instrução opcional] — abre uma sessão do Claude Code em "
@@ -50,26 +53,28 @@ def handle_start(base_url, chat_id, state):
         enviar_mensagem(base_url, chat_id, "🔒 Não autorizado.")
 
 
-def handle_claude(base_url, chat_id, prompt, state):
+def handle_claude(base_url: str, chat_id: int | str, prompt: str, state: BotState) -> None:
     if not state.is_owner(chat_id):
         enviar_mensagem(base_url, chat_id, "🔒 Não autorizado.")
         return
 
     ok, session_name, erro = claude_control.launch_session(prompt)
     if not ok:
+        assert erro is not None  # contrato de launch_session: ok=False sempre traz erro
         enviar_mensagem(base_url, chat_id, erro)
         return
 
-    enviar_mensagem(base_url, chat_id, f"✅ Sessão \"{session_name}\" aberta em {config.HOME_DIR}")
+    enviar_mensagem(base_url, chat_id, f'✅ Sessão "{session_name}" aberta em {config.HOME_DIR}')
 
 
-def handle_status(base_url, chat_id, state):
+def handle_status(base_url: str, chat_id: int | str, state: BotState) -> None:
     if not state.is_owner(chat_id):
         enviar_mensagem(base_url, chat_id, "🔒 Não autorizado.")
         return
 
     ok, sessoes, erro = claude_control.list_sessions()
     if not ok:
+        assert erro is not None  # contrato de list_sessions: ok=False sempre traz erro
         enviar_mensagem(base_url, chat_id, erro)
         return
 
@@ -104,15 +109,14 @@ def handle_status(base_url, chat_id, state):
     enviar_mensagem(base_url, chat_id, "Sessões ativas:\n" + "\n".join(linhas), reply_markup=reply_markup)
 
 
-def handle_pastas(base_url, chat_id, state):
+def handle_pastas(base_url: str, chat_id: int | str, state: BotState) -> None:
     if not state.is_owner(chat_id):
         enviar_mensagem(base_url, chat_id, "🔒 Não autorizado.")
         return
 
     try:
         pastas = sorted(
-            entry.name for entry in os.scandir(config.HOME_DIR)
-            if entry.is_dir() and not entry.name.startswith(".")
+            entry.name for entry in os.scandir(config.HOME_DIR) if entry.is_dir() and not entry.name.startswith(".")
         )
     except OSError as e:
         enviar_mensagem(base_url, chat_id, f"Erro ao listar pastas: {e}")
@@ -126,14 +130,14 @@ def handle_pastas(base_url, chat_id, state):
     enviar_mensagem(base_url, chat_id, texto)
 
 
-def _mensagem_reaberta(novo_id, url):
+def _mensagem_reaberta(novo_id: str | None, url: str | None) -> str:
     msg = f"🔓 Sessão reaberta em {config.HOME_DIR}"
     if novo_id:
         msg += f" (novo id {novo_id})"
     return msg
 
 
-def handle_fechar_callback(base_url, callback_query, state):
+def handle_fechar_callback(base_url: str, callback_query: dict[str, Any], state: BotState) -> None:
     callback_id = callback_query["id"]
     chat_id = callback_query["message"]["chat"]["id"]
 
@@ -157,7 +161,7 @@ def handle_fechar_callback(base_url, callback_query, state):
     enviar_mensagem(base_url, chat_id, f"🛑 Sessão {session_id} encerrada.")
 
 
-def handle_reabrir_callback(base_url, callback_query, state):
+def handle_reabrir_callback(base_url: str, callback_query: dict[str, Any], state: BotState) -> None:
     callback_id = callback_query["id"]
     chat_id = callback_query["message"]["chat"]["id"]
 
@@ -180,7 +184,7 @@ def handle_reabrir_callback(base_url, callback_query, state):
     enviar_mensagem(base_url, chat_id, _mensagem_reaberta(novo_id, url))
 
 
-def handle_reabrir(base_url, chat_id, session_id, state):
+def handle_reabrir(base_url: str, chat_id: int | str, session_id: str, state: BotState) -> None:
     if not state.is_owner(chat_id):
         enviar_mensagem(base_url, chat_id, "🔒 Não autorizado.")
         return
@@ -188,9 +192,9 @@ def handle_reabrir(base_url, chat_id, session_id, state):
     session_id = session_id.strip()
     if not session_id:
         enviar_mensagem(
-            base_url, chat_id,
-            "Uso: /reabrir <id da sessão>. Veja os ids no /status "
-            "(as sessões bloqueadas têm o botão 🔓 Reabrir).",
+            base_url,
+            chat_id,
+            "Uso: /reabrir <id da sessão>. Veja os ids no /status (as sessões bloqueadas têm o botão 🔓 Reabrir).",
         )
         return
     if not claude_control._id_de_sessao_valido(session_id):
@@ -204,7 +208,7 @@ def handle_reabrir(base_url, chat_id, session_id, state):
     enviar_mensagem(base_url, chat_id, _mensagem_reaberta(novo_id, url))
 
 
-def process_update(update, base_url, state):
+def process_update(update: dict[str, Any], base_url: str, state: BotState) -> None:
     if "callback_query" in update:
         dados = update["callback_query"].get("data", "")
         if dados.startswith("reabrir:"):
@@ -250,9 +254,9 @@ def process_update(update, base_url, state):
 
     if state.is_owner(chat_id):
         enviar_mensagem(
-            base_url, chat_id,
-            "Comandos disponíveis:\n/claude [instrução opcional]\n/status\n"
-            "/reabrir <id>\n/pastas",
+            base_url,
+            chat_id,
+            "Comandos disponíveis:\n/claude [instrução opcional]\n/status\n/reabrir <id>\n/pastas",
         )
     else:
         enviar_mensagem(base_url, chat_id, "🔒 Não autorizado.")

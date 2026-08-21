@@ -1,6 +1,7 @@
 """Cliente HTTP mínimo pra Telegram Bot API (mensagens, callbacks, long-polling)."""
 
 import logging
+from typing import Any
 
 import requests
 
@@ -9,8 +10,8 @@ from . import config
 logger = logging.getLogger(__name__)
 
 
-def enviar_mensagem(base_url, chat_id, texto, reply_markup=None):
-    payload = {"chat_id": chat_id, "text": texto}
+def enviar_mensagem(base_url: str, chat_id: int | str, texto: str, reply_markup: dict[str, Any] | None = None) -> None:
+    payload: dict[str, Any] = {"chat_id": chat_id, "text": texto}
     if reply_markup:
         payload["reply_markup"] = reply_markup
     try:
@@ -19,8 +20,10 @@ def enviar_mensagem(base_url, chat_id, texto, reply_markup=None):
         logger.error("erro ao enviar para %s", chat_id, exc_info=True)
 
 
-def responder_callback(base_url, callback_query_id, texto=None, show_alert=False):
-    payload = {"callback_query_id": callback_query_id}
+def responder_callback(
+    base_url: str, callback_query_id: str, texto: str | None = None, show_alert: bool = False
+) -> None:
+    payload: dict[str, Any] = {"callback_query_id": callback_query_id}
     if texto:
         payload["text"] = texto
     if show_alert:
@@ -31,7 +34,7 @@ def responder_callback(base_url, callback_query_id, texto=None, show_alert=False
         logger.error("erro ao responder callback", exc_info=True)
 
 
-def get_updates(base_url, offset):
+def get_updates(base_url: str, offset: int | None) -> list[dict[str, Any]]:
     """Faz o long-poll `getUpdates` e devolve a lista de updates. Deixa
     requests.RequestException propagar pro chamador decidir o que fazer
     (main() espera 5s e tenta de novo)."""
